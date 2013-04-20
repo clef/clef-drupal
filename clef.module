@@ -5,7 +5,6 @@
  *   Provides the ability to log in with Clef.
  *
  * TODO Associate the Clef ID with a user so that if they change their email address they can still log in
- * TODO Remove the permission
  */
 
 define('CLEF_DEFAULT_PASSWORD_LENGTH', 32);
