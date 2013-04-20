@@ -1,0 +1,8 @@
+name = Clef
+description = Provides the ability to log in with Clef.
+package = Authentication
+configure = admin/people/clef
+core = 7.x
+
+files[] = clef.module
+files[] = clef.install
