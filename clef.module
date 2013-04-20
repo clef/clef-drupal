@@ -5,6 +5,7 @@
  *   Provides the ability to log in with Clef.
  *
  * TODO Associate the Clef ID with a user so that if they change their email address they can still log in
+ * TODO Remove the permission
  */
 
 define('CLEF_DEFAULT_PASSWORD_LENGTH', 32);
@@ -16,7 +17,8 @@ function clef_menu() {
   $items = array();
   $items['admin/people/clef'] = array(
     'title' => 'Clef',
-    'page callback' => 'clef_admin',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('clef_admin'),
     'access arguments' => array('administer site configuration'),
     'description' => 'Allows administrators to configure settings for the Clef module.',
   );
@@ -24,21 +26,10 @@ function clef_menu() {
     'title' => 'Clef',
     'description' => 'Clef verification page',
     'page callback' => 'clef_verify_callback',
-    'access arguments' => array('log in with clef'),
+    'access callback' => TRUE,
     'type' => MENU_CALLBACK,
   );
   return $items;
-}
-
-/**
- * Implements hook_permission().
- */
-function clef_permission() {
-  return array(
-    'log in with clef' => array(
-      'title' => t('Log in with Clef'),
-    ),
-  );
 }
 
 /**
@@ -56,7 +47,7 @@ function clef_block_info() {
  * Implements hook_block_view().
  */
 function clef_block_view($delta = '') {
-  if ($delta == 'login' && user_access('log in with clef') && !user_is_logged_in()) {
+  if ($delta == 'login' && !user_is_logged_in()) {
     return array(
       'subject' => t('Log in'),
       'content' => clef_login_button(),
@@ -68,7 +59,7 @@ function clef_block_view($delta = '') {
  * Implements hook_form_FORM_ID_alter().
  */
 function clef_form_user_login_alter(&$form, $form_state) {
-  if (variable_get('clef_login_form', 1) && user_access('log in with clef')) {
+  if (variable_get('clef_login_form', 1)) {
     $form['actions']['clef'] = array(
       '#markup' => clef_login_button(),
     );
@@ -139,7 +130,7 @@ function clef_verify_callback() {
     }
     // Error 403 if only admins can create accounts
     elseif (variable_get('user_register', USER_REGISTER_VISITORS_ADMINISTRATIVE_APPROVAL) == USER_REGISTER_ADMINISTRATORS_ONLY) {
-      watchdog('clef', 'A user attempted to log in using Clef but their Clef account was not connected to a Drupal account, and only administrators can create new Drupal accounts.', array(), WATCHDOG_NOTICE);
+      drupal_set_message('Your Clef email address is not associated with any user accounts on this site, and only administrators may create new accounts.', 'error');
       return MENU_ACCESS_DENIED;
     }
     // Register the user
@@ -155,6 +146,7 @@ function clef_verify_callback() {
     }
   }
   else {
+    drupal_set_message(t('Drupal was unable to authenticate with Clef.'), 'error');
     return MENU_ACCESS_DENIED;
   }
 }
@@ -204,6 +196,10 @@ function clef_verify($code = '') {
     if ($response && !empty($response['info']) && !empty($response['success'])) {
       return $response['info'];
     }
+    watchdog('clef', 'Clef information retrieval failed with error: %error', array('%error' => isset($response['error']) ? $response['error'] : 'Unknown'), WATCHDOG_WARNING);
+  }
+  else {
+    watchdog('clef', 'Clef authorization failed with error: %error', array('%error' => isset($response->error) ? $response->error : 'Unknown'), WATCHDOG_WARNING);
   }
   return FALSE;
 }
@@ -219,16 +215,25 @@ function clef_admin($form, $form_state) {
         array('!url' => url('admin/config/people/accounts', array('fragment' => 'edit-user-register')))
       ), 'warning');
   }
+  if (!variable_get('clef_app_id', '')) {
+    drupal_set_message(t('Before allowing users to log in with Clef, you must <a href="@create">create a Clef application</a>.', array(
+        '@create' => 'https://developer.getclef.com/applications/new',
+      )) . ' ' .
+      t('You must give the app at least the "Email" permission, and the name-related permissions are recommended.') . ' ' .
+      t('Use <a href="@url">@url</a> for the "Application domain."', array('@url' => url())) . ' ' .
+      t('Clef will then give you an Application ID and Application Secret which you must copy-paste below.'),
+      'warning');
+  }
   $form['clef_app_id'] = array(
     '#type' => 'textfield',
-    '#title' => t('App ID'),
+    '#title' => t('Application ID'),
     '#description' => t('You can find this in your Clef developer dashboard. You must first register an application.'),
     '#default_value' => variable_get('clef_app_id', ''),
     '#required' => TRUE,
   );
   $form['clef_app_secret'] = array(
     '#type' => 'textfield',
-    '#title' => t('App Secret'),
+    '#title' => t('Application Secret'),
     '#description' => t('You can find this in your Clef developer dashboard. You must first register an application.'),
     '#default_value' => variable_get('clef_app_secret', ''),
     '#required' => TRUE,
@@ -255,7 +260,7 @@ function clef_admin($form, $form_state) {
   );
   $form['clef_login_form'] = array(
     '#type' => 'checkbox',
-    '#title' => t('Add a "Log in with Clef" button to the normal user login form'),
+    '#title' => t('Add a "Log in with your phone" button to the normal user login form'),
     '#default_value' => variable_get('clef_login_form', 1),
   );
   $form['clef_auto_register'] = array(
