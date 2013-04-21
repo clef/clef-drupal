@@ -4,7 +4,8 @@
  * @file
  *   Provides the ability to log in with Clef.
  *
- * TODO Associate the Clef ID with a user so that if they change their email address they can still log in
+ * TODO: Associate the Clef ID with a user so that if they change their email
+ *   address they can still log in
  */
 
 define('CLEF_DEFAULT_PASSWORD_LENGTH', 32);
@@ -106,9 +107,9 @@ function clef_form_user_register_form_alter(&$form, $form_state) {
  */
 function clef_login_button() {
   return '<div class="clef-wrapper"><script data-redirect-url="' . variable_get('clef_url', url('clef/verify', array('absolute' => TRUE))) .
-    '" data-style="' . variable_get('clef_button_type', 'button') . // or flat
-    '" data-color="' . variable_get('clef_color', 'blue') . // or white
-    '" data-app-id="' . variable_get('clef_app_id', '') . // from dashboard
+    '" data-style="' . variable_get('clef_button_type', 'button') .
+    '" data-color="' . variable_get('clef_color', 'blue') .
+    '" data-app-id="' . variable_get('clef_app_id', '') .
     '" class="clef-button" src="https://clef.io/v2/clef.js" type="text/javascript"></script></div>';
 }
 
@@ -121,6 +122,7 @@ function clef_verify_callback() {
     if ($account = user_load_by_mail($info['email'])) {
       $form_state = array('uid' => $account->uid);
       user_login_submit(array(), $form_state);
+      drupal_goto('user/' . $account->uid);
     }
     // If we're not auto-registering, go to the registration form
     elseif (!variable_get('clef_auto_register', 0)) {
@@ -142,6 +144,7 @@ function clef_verify_callback() {
       $form_state['values']['mail'] = $info['email'];
       $form_state['values']['pass'] = user_password(CLEF_DEFAULT_PASSWORD_LENGTH);
       user_register_submit($form, $form_state);
+      drupal_goto();
     }
   }
   else {
@@ -154,7 +157,7 @@ function clef_verify_callback() {
  * Verifies a user who is attempting to log in with Clef.
  *
  * @param $code
- *   (Optional) The verification code. Defaults to $_GET['code'].
+ *   (Optional) The verification code. Defaults to $_REQUEST['code'].
  *
  * @return
  *   FALSE if the verification failed or an associative array containing the
@@ -181,16 +184,15 @@ function clef_verify($code = '') {
     'app_secret' => variable_get('clef_app_secret', ''),
   ));
 
-  $response = drupal_http_request('https://clef.io/api/v1/authorize', array(
+  $response = json_decode(drupal_http_request('https://clef.io/api/v1/authorize', array(
     'method'  => 'POST',
     'headers' => array('Content-Type' => 'application/x-www-form-urlencoded'),
-    'content' => $postdata,
-  ))->data;
-  $response = json_decode($response);
+    'data' => $postdata,
+  ))->data, TRUE);
 
-  if ($response && !empty($response->access_token)) {
-    $url = 'https://clef.io/api/v1/info?access_token=' . $response->access_token;
-    $response = json_decode(drupal_http_request($url)->data);
+  if ($response && !empty($response['access_token'])) {
+    $url = 'https://clef.io/api/v1/info?access_token=' . $response['access_token'];
+    $response = json_decode(drupal_http_request($url)->data, TRUE);
 
     if ($response && !empty($response['info']) && !empty($response['success'])) {
       return $response['info'];
@@ -198,7 +200,7 @@ function clef_verify($code = '') {
     watchdog('clef', 'Clef information retrieval failed with error: %error', array('%error' => isset($response['error']) ? $response['error'] : 'Unknown'), WATCHDOG_WARNING);
   }
   else {
-    watchdog('clef', 'Clef authorization failed with error: %error', array('%error' => isset($response->error) ? $response->error : 'Unknown'), WATCHDOG_WARNING);
+    watchdog('clef', 'Clef authorization failed with error: %error', array('%error' => isset($response['error']) ? $response['error'] : 'Unknown'), WATCHDOG_WARNING);
   }
   return FALSE;
 }
