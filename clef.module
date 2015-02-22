@@ -218,7 +218,7 @@ function clef_admin($form, $form_state) {
   }
   if (!variable_get('clef_app_id', '')) {
     drupal_set_message(t('Before allowing users to log in with Clef, you must <a href="@create">create a Clef application</a>.', array(
-        '@create' => 'https://developer.getclef.com/applications/new',
+        '@create' => 'https://getclef.com/developer',
       )) . ' ' .
       t('You must give the app at least the "Email" permission, and the name-related permissions are recommended.') . ' ' .
       t('Use <a href="@url">@url</a> for the "Application domain."', array('@url' => url())) . ' ' .
