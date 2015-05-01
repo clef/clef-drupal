@@ -11,6 +11,13 @@
 define('CLEF_DEFAULT_PASSWORD_LENGTH', 32);
 
 /**
+* Implements hook_init().
+*/
+function clef_init() {
+  _initialize_state();
+}
+
+/**
  * Implements hook_menu().
  */
 function clef_menu() {
@@ -110,7 +117,8 @@ function clef_login_button() {
     '" data-style="' . variable_get('clef_button_type', 'button') .
     '" data-color="' . variable_get('clef_color', 'blue') .
     '" data-app-id="' . variable_get('clef_app_id', '') .
-    '" class="clef-button" src="https://clef.io/v2/clef.js" type="text/javascript"></script></div>';
+    '" data-state="' . _get_state() .
+    '" class="clef-button" src="https://clef.io/v3/clef.js" type="text/javascript"></script></div>';
 }
 
 /**
@@ -171,6 +179,8 @@ function clef_verify_callback() {
  *   the app's settings.
  */
 function clef_verify($code = '') {
+  if (!_verify_state()) return FALSE;
+
   if (empty($code)) {
     $code = isset($_REQUEST['code']) ? $_REQUEST['code'] : '';
     if (empty($code)) {
@@ -289,4 +299,34 @@ function _clef_get_name($info) {
     return drupal_ucfirst(drupal_substr($info['email'], 0, strpos($info['email'], '@')));
   }
   return '';
+}
+
+function _get_state() {
+  if (!isset($_COOKIE['_clef_state']) || !$_COOKIE['_clef_state']) {
+    return _initialize_state();
+  } else {
+    return $_COOKIE['_clef_state'];
+  }
+}
+
+function _verify_state() {
+  $request_state = $code = isset($_REQUEST['state']) ? $_REQUEST['state'] : '';
+  $correct_state = _get_state();
+
+  if ($request_state && $correct_state && $correct_state == $request_state) {
+    _initialize_state(true);
+    return true;
+  } else {
+    return false;
+  }
+}
+
+function _initialize_state($override=false) {
+  if (!$override && isset($_COOKIE['_clef_state']) && $_COOKIE['_clef_state']) return;
+
+  $state = md5(uniqid(rand(), true));
+  @setcookie('_clef_state', $state, (time() + 60 * 60 * 24), '/', '', isset($_SERVER['HTTPS']), true);
+  $_COOKIE['state'] = $state;
+
+  return $state;
 }
