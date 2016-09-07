@@ -127,32 +127,37 @@ function clef_login_button() {
 function clef_verify_callback() {
   if ($info = clef_verify()) {
     // Clef is authorized to log into accounts using this email address
-    if ($account = user_load_by_mail($info['email'])) {
-      $form_state = array('uid' => $account->uid);
-      user_login_submit(array(), $form_state);
-      drupal_goto('user/' . $account->uid);
-    }
-    // If we're not auto-registering, go to the registration form
-    elseif (!variable_get('clef_auto_register', 0)) {
-      unset($info['id'], $info['phone_number']);
-      drupal_goto('user/register', array('query' => $info));
-    }
-    // Error 403 if only admins can create accounts
-    elseif (variable_get('user_register', USER_REGISTER_VISITORS_ADMINISTRATIVE_APPROVAL) == USER_REGISTER_ADMINISTRATORS_ONLY) {
-      drupal_set_message('Your Clef email address is not associated with any user accounts on this site, and only administrators may create new accounts.', 'error');
+    if (isset($info['email'])) {
+      if ($account = user_load_by_mail($info['email'])) {
+        $form_state = array('uid' => $account->uid);
+        user_login_submit(array(), $form_state);
+        drupal_goto('user/' . $account->uid);
+      }
+      // If we're not auto-registering, go to the registration form
+      elseif (!variable_get('clef_auto_register', 0)) {
+        unset($info['id'], $info['phone_number']);
+        drupal_goto('user/register', array('query' => $info));
+      }
+      // Error 403 if only admins can create accounts
+      elseif (variable_get('user_register', USER_REGISTER_VISITORS_ADMINISTRATIVE_APPROVAL) == USER_REGISTER_ADMINISTRATORS_ONLY) {
+        drupal_set_message('Your Clef email address is not associated with any user accounts on this site, and only administrators may create new accounts.', 'error');
+        return MENU_ACCESS_DENIED;
+      }
+      // Register the user
+      else {
+        $form = $form_state = array();
+        $form['#user'] = drupal_anonymous_user();
+        $form['#user_category'] = 'register';
+        $form_state['values']['administer_users'] = FALSE;
+        $form_state['values']['name'] = _clef_get_name($info);
+        $form_state['values']['mail'] = $info['email'];
+        $form_state['values']['pass'] = user_password(CLEF_DEFAULT_PASSWORD_LENGTH);
+        user_register_submit($form, $form_state);
+        drupal_goto();
+      }
+    } else {
+      drupal_set_message(t('To use the Clef for Drupal plugin, you must have the Email permission enabled on your Clef integration. To enable this, please visit the Permissions tab of the Clef dashboard for your integration.'), 'error');
       return MENU_ACCESS_DENIED;
-    }
-    // Register the user
-    else {
-      $form = $form_state = array();
-      $form['#user'] = drupal_anonymous_user();
-      $form['#user_category'] = 'register';
-      $form_state['values']['administer_users'] = FALSE;
-      $form_state['values']['name'] = _clef_get_name($info);
-      $form_state['values']['mail'] = $info['email'];
-      $form_state['values']['pass'] = user_password(CLEF_DEFAULT_PASSWORD_LENGTH);
-      user_register_submit($form, $form_state);
-      drupal_goto();
     }
   }
   else {
